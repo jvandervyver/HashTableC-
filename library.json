@@ -1,0 +1,23 @@
+{
+  "name": "HashTableCPP",
+  "keywords": "data structure, hashmap, hashtable",
+  "description": "A simple hash table",
+  "homepage": "https://github.com/jvandervyver/HashTableCPP",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jvandervyver/HashTableCPP.git"
+  },
+  "version": "1.0",
+  "authors": {
+    "name": "Johan van der Vyver",
+    "url": "https://github.com/jvandervyver"
+  },
+  "exclude": [
+    ".github"
+  ],
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "libArchive": false
+  }
+}
