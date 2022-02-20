@@ -1,5 +1,6 @@
 #include "hash_table.h"
 
+#include <type_traits>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,7 @@
   #define unlikely(x)     __builtin_expect(!!(x), 0)
 #else
   #define likely(x)       (x)
-#define unlikely(x)     (x)
+  #define unlikely(x)     (x)
 #endif
 
 #define MAXIMUM_MAP_SIZE  ((UINT_MAX) - 1)
@@ -18,7 +19,7 @@
 typedef unsigned int hash_code_t;
 
 struct __hash_table_node_struct_t {
-  const char* key;
+  void* key;
   hash_code_t hashCode;
   void* value;
   hash_table_node_t* next;
@@ -29,34 +30,46 @@ static hash_table_node_t* mallocNode();
 static void freeNodes(hash_table_node_t* nodes, const size_t size);
 static size_t calculateTableSize(size_t size);
 static hash_code_t calculateHash(const char* cstring);
-static void* putNode(hash_table_node_t* nodes, const size_t nodesSize, const char* key, const hash_code_t hashCode, void* value);
 
-HashTable::HashTable(const size_t initialSize) {
+template <typename K, typename V>
+HashTable<K,V>::HashTable(
+  const unsigned int initialSize,
+  bool (*_equals)(K k1, K k2),
+  hash_code_t (*_calculateHashCode)(K key)
+) {
+  static_assert(std::is_pointer<K>::value, "Key must be a pointer");
+  static_assert(std::is_pointer<V>::value, "Value must be a pointer");
+
   this->elementCount = 0;
   this->nodes = mallocNodes(this->nodesSize = calculateTableSize(initialSize));
+  this->equals = _equals;
+  this->calculateHashCode = _calculateHashCode;
 }
 
-HashTable::~HashTable() {
+template <typename K, typename V>
+HashTable<K,V>::~HashTable() {
   freeNodes(nodes, nodesSize);
 }
 
-unsigned int HashTable::size() const {
-  return this->elementCount;
+template <typename K, typename V>
+unsigned int HashTable<K,V>::size() const {
+  return elementCount;
 }
 
-void* HashTable::get(const char* key) const {
+template <typename K, typename V>
+V HashTable<K,V>::get(K key) const {
   if (unlikely(key == 0)) {
     return 0;
   }
 
-  hash_table_node_t* node = &nodes[getNodeIndex(nodesSize, calculateHash(key))];
+  hash_table_node_t* node = &nodes[getNodeIndex(nodesSize, calculateHashCode(key))];
   if (node->key == 0) {
     return 0;
   }
 
   do {
-    if (strcmp(node->key, key) == 0) {
-      return node->value;
+    if (equals((K) node->key, key)) {
+      return (V) node->value;
     }
 
     node = node->next;
@@ -65,7 +78,8 @@ void* HashTable::get(const char* key) const {
   return 0;
 }
 
-void* HashTable::put(const char* key, void* value) {
+template <typename K, typename V>
+V HashTable<K,V>::put(K key, V value) {
   if (unlikely(key == 0)) {
     return 0;
   }
@@ -77,10 +91,41 @@ void* HashTable::put(const char* key, void* value) {
   }
 
   ++elementCount;
-  return putNode(nodes, nodesSize, key, calculateHash(key), value);
+  return put(key, calculateHashCode(key), value);
 }
 
-bool HashTable::resize() {
+template <typename K, typename V>
+V HashTable<K,V>::put(K key, const hash_code_t hashCode, V value) {
+  hash_table_node_t* node = &nodes[getNodeIndex(nodesSize, hashCode)];
+
+  if (node->key != 0) {
+    while (1) {
+      if (equals((K) node->key, key)) {
+        break;
+      }
+
+      hash_table_node_t* nextNode = node->next;
+      if (nextNode != 0) {
+        node = nextNode;
+      }
+
+      node->next = mallocNode();
+      node = node->next;
+      break;
+    }
+  }
+
+  V currentValue = (V) node->value;
+  node->value = (void*) value;
+
+  node->key = (void*) key;
+  node->hashCode = hashCode;
+
+  return currentValue;
+}
+
+template <typename K, typename V>
+bool HashTable<K,V>::resize() {
   const size_t prevNodesSize = nodesSize;
   hash_table_node_t* prevNodes = nodes;
 
@@ -102,25 +147,13 @@ bool HashTable::resize() {
     }
 
     do {
-      putNode(nodes, nodesSize, node->key, node->hashCode, node->value);
+      put((K) node->key, node->hashCode, (V) node->value);
       node = node->next;
     } while (node != 0);
   }
 
   freeNodes(prevNodes, prevNodesSize);
   return true;
-}
-
-static hash_code_t calculateHash(const char* cstring) {
-  hash_code_t hashCode = 0;
-
-  char ch;
-  while ((ch = *cstring)) {
-    hashCode = ((hash_code_t) 31) * hashCode + ((hash_code_t) ch);
-    cstring += sizeof(char);
-  }
-
-  return hashCode;
 }
 
 static size_t calculateTableSize(size_t size) {
@@ -169,33 +202,4 @@ static void freeNodes(hash_table_node_t* nodes, const size_t size) {
   }
 
   free(nodes);
-}
-
-static void* putNode(hash_table_node_t* nodes, const size_t nodesSize, const char* key, const hash_code_t hashCode, void* value) {
-  hash_table_node_t* node = &nodes[getNodeIndex(nodesSize, hashCode)];
-
-  if (node->key != 0) {
-    while (1) {
-      if (strcmp(node->key, key) == 0) {
-        break;
-      }
-
-      hash_table_node_t* nextNode = node->next;
-      if (nextNode != 0) {
-        node = nextNode;
-      }
-
-      node->next = mallocNode();
-      node = node->next;
-      break;
-    }
-  }
-
-  void* currentValue = node->value;
-  node->value = value;
-
-  node->key = key;
-  node->hashCode = hashCode;
-
-  return currentValue;
 }
