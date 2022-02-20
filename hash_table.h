@@ -6,22 +6,8 @@
   #include <stdlib.h>
   #include <string.h>
 
-  #ifdef __GNUC__
-    #define likely(x)       __builtin_expect(!!(x), 1)
-    #define unlikely(x)     __builtin_expect(!!(x), 0)
-  #else
-    #define likely(x)       (x)
-    #define unlikely(x)     (x)
-  #endif
-
   typedef unsigned int hash_code_t;
   typedef struct __hash_table_node_struct_t hash_table_node_t;
-  struct __hash_table_node_struct_t {
-    void* key;
-    hash_code_t hashCode;
-    void* value;
-    hash_table_node_t* next;
-  };
 
   template <typename K, typename V>
   class HashTable {
@@ -47,7 +33,33 @@
       bool resize();
   };
 
+
 /************* Implementation due to template *************/
+
+#ifdef __GNUC__
+  #ifndef likely
+    #define likely(x)       __builtin_expect(!!(x), 1)
+  #endif
+
+  #ifndef unlikely
+    #define unlikely(x)     __builtin_expect(!!(x), 0)
+  #endif
+#else
+  #ifndef likely
+    #define likely(x)       (x)
+  #endif
+
+  #ifndef unlikely
+    #define unlikely(x)     (x)
+  #endif
+#endif
+
+struct __hash_table_node_struct_t {
+  void* key;
+  hash_code_t hashCode;
+  void* value;
+  hash_table_node_t* next;
+};
 
 static hash_table_node_t* mallocNodes(const size_t size);
 static hash_table_node_t* mallocNode();
